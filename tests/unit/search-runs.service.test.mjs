@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SearchService } from '../src/jobs.mjs';
+import { SearchRunsService } from '../../src/modules/search-runs/search-runs.service.mjs';
 
-const waitForFinishedRun = async (service,id) => {
+const waitForFinishedRun=async(service,id)=>{
   for (let attempt=0;attempt<50;attempt++) {
     const run=service.getRun(id);
     if (run.status!=='running') return run;
@@ -15,11 +15,9 @@ test('manual run performs all 13 searches for the configured country',async()=>{
   const calls=[];
   const mcp={call:async(action,params)=>{calls.push({action,params});return {jobs:[]};}};
   const quota={nextAvailableMs:()=>0,reserve:()=>{}};
-  const service=new SearchService(mcp,quota);
-
+  const service=new SearchRunsService(mcp,quota);
   const started=service.startManualRun({country:'Canada',limit:5});
   assert.equal(started.plannedRequests,13);
-
   const run=await waitForFinishedRun(service,started.id);
   assert.equal(run.status,'complete');
   assert.equal(run.completedRequests,13);

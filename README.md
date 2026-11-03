@@ -29,6 +29,35 @@ Upwork publishes Search and Discovery rate limits but separately advises clients
 - npm
 - An Upwork account with access to Upwork MCP
 
+## Project structure
+
+```text
+esclatech-upwork-mcp-backend/
+├── data/                         # Runtime OAuth and quota files (ignored by Git)
+├── docs/
+│   └── architecture.md
+├── src/
+│   ├── app/                      # Express composition and dependency bootstrap
+│   ├── config/                   # Environment and search configuration
+│   ├── infrastructure/
+│   │   ├── persistence/          # Encrypted local credential storage
+│   │   ├── quota/                # Local request quota tracking
+│   │   └── upwork/               # OAuth provider and Upwork MCP client
+│   ├── middlewares/              # API key, async, 404 and error handlers
+│   ├── modules/
+│   │   ├── auth/                 # Upwork authorization routes
+│   │   ├── health/               # Health route
+│   │   └── search-runs/          # Controller, routes, service and repository
+│   └── routes.mjs                # Central route registry
+├── tests/
+│   └── unit/
+├── server.mjs                    # Main entry point
+├── package.json
+└── README.md
+```
+
+See [docs/architecture.md](docs/architecture.md) for layer responsibilities and request flow.
+
 ## Configuration
 
 Copy `.env.example` to `.env`, then configure:
@@ -121,23 +150,26 @@ Invoke-RestMethod `
   -Headers $headers
 ```
 
-The legacy `POST /v1/jobs/search-batch` and `GET /v1/jobs/search-runs/:id` routes remain available as compatibility aliases.
+## Search API routes
 
-## API routes
+| Method | Route | Purpose |
+|---|---|---|
+| POST | `/v1/search-runs` | Manually start all 13 configured searches |
+| GET | `/v1/search-runs/:id` | Read run progress and transient results |
+
+These are the only application-facing search routes.
+
+## Operational support routes
 
 | Method | Route | Purpose |
 |---|---|---|
 | GET | `/health` | Health check |
-| GET | `/v1/config` | Keywords, fixed target country, and planned request count |
-| GET | `/v1/quota` | Locally recorded quota usage |
 | POST | `/v1/auth/upwork/start` | Start Upwork OAuth |
-| GET | `/v1/auth/upwork/callback` | OAuth callback |
+| GET | `/v1/auth/upwork/callback` | Required OAuth callback |
 | GET | `/v1/auth/upwork/status` | Connection status |
 | POST | `/v1/auth/upwork/disconnect` | Clear local OAuth credentials |
-| POST | `/v1/jobs/search` | Run one explicit keyword/country search |
-| POST | `/v1/search-runs` | Manually start all 13 configured searches |
-| GET | `/v1/search-runs/:id` | Read run progress and transient results |
-| GET | `/v1/jobs/:id` | Retrieve one job's details |
+
+The support routes are required for initial authorization, reconnection, and health monitoring. Normal job discovery uses only the two search routes above.
 
 ## Rate management
 

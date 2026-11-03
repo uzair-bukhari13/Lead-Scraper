@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {KEYWORDS, expandSearches, normalizeCountry,formatJobs} from '../src/config.mjs';
+import { KEYWORDS, expandSearches, normalizeCountry } from '../../src/config/search.config.mjs';
+import { formatJobs } from '../../src/modules/search-runs/search-runs.parsed-response.mjs';
 
 test('there are exactly 13 configured keywords',()=>assert.equal(KEYWORDS.length,13));
 test('manual cycle uses one configured country for all 13 calls',()=>{
@@ -22,5 +23,5 @@ test('jobs are deduplicated and unrelated countries are excluded',()=>{
     {id:'125',title:'Foreign',url:'https://www.upwork.com/jobs/~02125',client:{country:'Australia'}},
     {id:'126',title:'Canada',url:'https://www.upwork.com/jobs/~02126',client:{country:'Canada'}}
   ]);
-  assert.deepEqual(results.map(r=>r.id),['123','126']);
+  assert.deepEqual(results.map(result=>result.id),['123','126']);
 });
