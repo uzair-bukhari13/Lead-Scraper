@@ -13,11 +13,22 @@ const waitForFinishedRun=async(service,id)=>{
 
 test('manual run performs all 13 searches for the configured country',async()=>{
   const calls=[];
-  const mcp={call:async(action,params)=>{calls.push({action,params});return {jobs:[]};}};
+  const postedAt='2026-11-03T20:05:15.584Z';
+  const mcp={call:async(action,params)=>{
+    calls.push({action,params});
+    return {jobs:[{
+      id:'2117709706166172517',
+      title:'Example job',
+      url:'https://www.upwork.com/jobs/~022117709706166172517',
+      client:{country:'Canada'},
+      published_date:postedAt
+    }]};
+  }};
   const quota={nextAvailableMs:()=>0,reserve:()=>{}};
   const service=new SearchRunsService(mcp,quota);
   const started=service.startManualRun({country:'Canada',limit:5});
   assert.equal(started.plannedRequests,13);
+  assert.equal(started.jobsCount,0);
   const run=await waitForFinishedRun(service,started.id);
   assert.equal(run.status,'complete');
   assert.equal(run.completedRequests,13);
@@ -25,4 +36,8 @@ test('manual run performs all 13 searches for the configured country',async()=>{
   assert.equal(run.country,'Canada');
   assert.equal(calls.length,13);
   assert.ok(calls.every(({action,params})=>action==='search'&&params.location==='Canada'&&params.limit===5));
+  assert.equal(run.jobs.length,1);
+  assert.equal(run.jobsCount,run.jobs.length);
+  assert.equal(run.jobs[0].postedAt,postedAt);
+  assert.equal(run.jobs[0].searchedKeywords.length,13);
 });

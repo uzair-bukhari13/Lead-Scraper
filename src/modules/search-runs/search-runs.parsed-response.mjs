@@ -7,7 +7,7 @@ export const canonicalJobId=job=>{
   return match?match[1]:null;
 };
 
-export const formatJobs=(jobs,location=null)=>{
+export const formatJobs=(jobs,location=null,searchedKeyword=null)=>{
   if (!Array.isArray(jobs)) return [];
   const ids=new Set();
   const results=[];
@@ -31,6 +31,7 @@ export const formatJobs=(jobs,location=null)=>{
       jobType:job.job_type??null,
       duration:job.duration??null,
       postedAt:job.published_date??job.created_date??null,
+      searchedKeywords:searchedKeyword?[searchedKeyword]:[],
       skills:Array.isArray(job.skills)?job.skills:[],
       summary:typeof job.description_snippet==='string'
         ?job.description_snippet.replace(/<\/?untrusted_participant_content>/g,'').trim()

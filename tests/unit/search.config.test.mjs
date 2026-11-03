@@ -22,6 +22,7 @@ test('jobs are deduplicated and unrelated countries are excluded',()=>{
     {id:'124',title:'Unknown',url:'https://www.upwork.com/jobs/~02124',client:{}},
     {id:'125',title:'Foreign',url:'https://www.upwork.com/jobs/~02125',client:{country:'Australia'}},
     {id:'126',title:'Canada',url:'https://www.upwork.com/jobs/~02126',client:{country:'Canada'}}
-  ]);
+  ],null,'Web development');
   assert.deepEqual(results.map(result=>result.id),['123','126']);
+  assert.deepEqual(results[0].searchedKeywords,['Web development']);
 });

@@ -150,6 +150,24 @@ Invoke-RestMethod `
   -Headers $headers
 ```
 
+Each returned job includes its Upwork posting timestamp and every configured keyword search in which it appeared:
+
+```json
+{
+  "id": "2117709706166172517",
+  "title": "Example job",
+  "postedAt": "2026-11-03T20:05:15.584Z",
+  "searchedKeywords": [
+    "Web development",
+    "SaaS Development"
+  ]
+}
+```
+
+`postedAt` is an ISO 8601 UTC timestamp. A deduplicated job can contain multiple values in `searchedKeywords`.
+
+The run object also includes `jobsCount`, which is the number of unique jobs discovered so far and always matches the length of the `jobs` array.
+
 ## Search API routes
 
 | Method | Route | Purpose |

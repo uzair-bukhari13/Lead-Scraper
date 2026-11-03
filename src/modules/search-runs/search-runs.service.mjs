@@ -36,6 +36,7 @@ export class SearchRunsService {
       completedRequests:0,
       errors:[],
       jobs:[],
+      jobsCount:0,
       trigger:'manual',
       country,
       stored:false
@@ -43,10 +44,10 @@ export class SearchRunsService {
     this.repository.create(run);
     this.busy=true;
     this.#execute(run,searches,limit).catch(()=>{});
-    return {id,status:run.status,plannedRequests:run.plannedRequests};
+    return {id,status:run.status,plannedRequests:run.plannedRequests,jobsCount:run.jobsCount};
   };
   #execute=async(run,searches,limit)=>{
-    const ids=new Set();
+    const jobsById=new Map();
     try {
       for (const {keyword,country} of searches) {
         const params={query:keyword,sort:'recency',limit,location:country};
@@ -61,10 +62,18 @@ export class SearchRunsService {
           run.errors.push({keyword,country,message:SEARCH_RUN_MESSAGES.filtersRejected});
           continue;
         }
-        for (const job of formatJobs(response.jobs||[],country)) {
-          if (!ids.has(job.id)) {
-            ids.add(job.id);
+        for (const job of formatJobs(response.jobs||[],country,keyword)) {
+          const existing=jobsById.get(job.id);
+          if (!existing) {
+            jobsById.set(job.id,job);
             run.jobs.push(job);
+            run.jobsCount=run.jobs.length;
+            continue;
+          }
+          for (const searchedKeyword of job.searchedKeywords) {
+            if (!existing.searchedKeywords.includes(searchedKeyword)) {
+              existing.searchedKeywords.push(searchedKeyword);
+            }
           }
         }
       }
