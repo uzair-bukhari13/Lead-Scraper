@@ -4,4 +4,4 @@ import { fileURLToPath } from 'node:url';
 import { bootstrap } from './src/app/bootstrap.mjs';
 
 const projectDir=dirname(fileURLToPath(import.meta.url));
-bootstrap({projectDir});
+await bootstrap({projectDir});

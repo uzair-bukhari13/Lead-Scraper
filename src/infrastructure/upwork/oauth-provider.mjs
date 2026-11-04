@@ -1,49 +1,102 @@
 import { randomBytes } from 'node:crypto';
 
-export class UpworkOAuthProvider {
-  constructor(secureFile,publicBaseUrl) {
-    this.file=secureFile;
-    this.baseUrl=publicBaseUrl.replace(/\/$/,'');
-    this.record=secureFile.read({});
-    this.authorizationUrl=null;
-  }
-  get redirectUrl() {return `${this.baseUrl}/v1/auth/upwork/callback`;}
-  get clientMetadata() {
-    return {
-      client_name:'Esclatech Upwork MCP Dashboard',
-      redirect_uris:[this.redirectUrl],
-      response_types:['code'],
-      grant_types:['authorization_code','refresh_token'],
-      token_endpoint_auth_method:'none'
-    };
-  }
-  clientInformation=()=>this.record.clientInformation;
-  saveClientInformation=value=>{this.record.clientInformation=value;this.#save();};
-  tokens=()=>this.record.tokens;
-  saveTokens=value=>{this.record.tokens=value;this.#save();};
-  state=()=>{
-    this.record.pendingState=randomBytes(32).toString('hex');
-    this.record.pendingStartedAt=Date.now();
-    this.#save();
-    return this.record.pendingState;
+export const createUpworkOAuthProvider = (secureFile, publicBaseUrl) => {
+  const baseUrl = publicBaseUrl.replace(/\/$/, '');
+  let record = secureFile.read({});
+  let authorizationUrl = null;
+
+  const save = () => {
+    secureFile.write(record);
   };
-  redirectToAuthorization=url=>{this.authorizationUrl=url.toString();};
-  saveCodeVerifier=value=>{this.record.codeVerifier=value;this.#save();};
-  codeVerifier=()=>{
-    if (!this.record.codeVerifier) throw new Error('Missing OAuth PKCE verifier');
-    return this.record.codeVerifier;
+
+  const redirectUrl = `${baseUrl}/v1/auth/upwork/callback`;
+  const clientMetadata = {
+    client_name: 'Esclatech Upwork MCP Dashboard',
+    redirect_uris: [redirectUrl],
+    response_types: ['code'],
+    grant_types: ['authorization_code', 'refresh_token'],
+    token_endpoint_auth_method: 'none'
   };
-  validCallbackState=value=>{
-    if (!value||!this.record.pendingState||Date.now()-this.record.pendingStartedAt>15*60_000) return false;
-    return value===this.record.pendingState;
+
+  const clientInformation = () => record.clientInformation;
+
+  const saveClientInformation = value => {
+    record.clientInformation = value;
+    save();
   };
-  clearPending=()=>{
-    delete this.record.pendingState;
-    delete this.record.pendingStartedAt;
-    delete this.record.codeVerifier;
-    this.authorizationUrl=null;
-    this.#save();
+
+  const tokens = () => record.tokens;
+
+  const saveTokens = value => {
+    record.tokens = value;
+    save();
   };
-  disconnect=()=>{this.record={};this.authorizationUrl=null;this.#save();};
-  #save=()=>{this.file.write(this.record);};
-}
+
+  const state = () => {
+    record.pendingState = randomBytes(32).toString('hex');
+    record.pendingStartedAt = Date.now();
+    save();
+    return record.pendingState;
+  };
+
+  const redirectToAuthorization = url => {
+    authorizationUrl = url.toString();
+  };
+
+  const saveCodeVerifier = value => {
+    record.codeVerifier = value;
+    save();
+  };
+
+  const codeVerifier = () => {
+    if (!record.codeVerifier) {
+      throw new Error('Missing OAuth PKCE verifier');
+    }
+
+    return record.codeVerifier;
+  };
+
+  const validCallbackState = value => {
+    const pendingStateExpired =
+      Date.now() - record.pendingStartedAt > 15 * 60_000;
+
+    if (!value || !record.pendingState || pendingStateExpired) {
+      return false;
+    }
+
+    return value === record.pendingState;
+  };
+
+  const clearPending = () => {
+    delete record.pendingState;
+    delete record.pendingStartedAt;
+    delete record.codeVerifier;
+    authorizationUrl = null;
+    save();
+  };
+
+  const disconnect = () => {
+    record = {};
+    authorizationUrl = null;
+    save();
+  };
+
+  return Object.freeze({
+    redirectUrl,
+    clientMetadata,
+    get authorizationUrl() {
+      return authorizationUrl;
+    },
+    clientInformation,
+    saveClientInformation,
+    tokens,
+    saveTokens,
+    state,
+    redirectToAuthorization,
+    saveCodeVerifier,
+    codeVerifier,
+    validCallbackState,
+    clearPending,
+    disconnect
+  });
+};

@@ -3,16 +3,24 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.mjs",
-    "dev": "node --watch server.mjs",
+    "dev": "nodemon --config nodemon.json",
     "test": "node --test tests/unit/*.test.mjs",
-    "check": "node --check server.mjs && node --check src/app/bootstrap.mjs && node --check src/routes.mjs && node --check src/modules/search-runs/search-runs.service.mjs"
+    "check": "node --check server.mjs && node --check src/app/bootstrap.mjs && node --check src/routes.mjs && node --check src/infrastructure/database/mongodb.mjs && node --check src/middlewares/mongoose-pagination.middleware.mjs && node --check src/modules/leads/lead.controller.mjs && node --check src/modules/leads/lead.model.mjs && node --check src/modules/leads/lead.repository.mjs && node --check src/modules/leads/lead.routes.mjs && node --check src/modules/leads/lead.service.mjs && node --check src/modules/leads/lead.validation.mjs && node --check src/modules/search-runs/search-runs.service.mjs && node --check src/modules/search-runs/search-runs.socket.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
     "dotenv": "^16.6.1",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "mongoose": "^9.11.4",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "socket.io-client": "^4.8.4"
   }
 }

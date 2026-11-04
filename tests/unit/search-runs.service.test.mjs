@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SearchRunsService } from '../../src/modules/search-runs/search-runs.service.mjs';
+import { createSearchRunsService } from '../../src/modules/search-runs/search-runs.service.mjs';
 
 const waitForFinishedRun=async(service,id)=>{
   for (let attempt=0;attempt<50;attempt++) {
@@ -13,6 +13,8 @@ const waitForFinishedRun=async(service,id)=>{
 
 test('manual run performs all 13 searches for the configured country',async()=>{
   const calls=[];
+  const progressEvents=[];
+  const storedLeadBatches=[];
   const postedAt='2026-11-03T20:05:15.584Z';
   const mcp={call:async(action,params)=>{
     calls.push({action,params});
@@ -25,7 +27,12 @@ test('manual run performs all 13 searches for the configured country',async()=>{
     }]};
   }};
   const quota={nextAvailableMs:()=>0,reserve:()=>{}};
-  const service=new SearchRunsService(mcp,quota);
+  const service=createSearchRunsService(mcp,quota,undefined,{
+    publishProgress:progress=>progressEvents.push(progress),
+    leadRepository:{
+      upsertMany:async(leads,context)=>storedLeadBatches.push({leads,context})
+    }
+  });
   const started=service.startManualRun({country:'Canada',limit:5});
   assert.equal(started.plannedRequests,13);
   assert.equal(started.jobsCount,0);
@@ -40,4 +47,14 @@ test('manual run performs all 13 searches for the configured country',async()=>{
   assert.equal(run.jobsCount,run.jobs.length);
   assert.equal(run.jobs[0].postedAt,postedAt);
   assert.equal(run.jobs[0].searchedKeywords.length,13);
+  assert.equal(progressEvents.length,14);
+  assert.equal(progressEvents[0].completedRequests,1);
+  assert.equal(progressEvents[0].status,'running');
+  assert.equal(progressEvents[0].jobs[0].searchedKeywords.length,1);
+  assert.equal(progressEvents.at(-1).completedRequests,13);
+  assert.equal(progressEvents.at(-1).status,'complete');
+  assert.equal(progressEvents.at(-1).jobsCount,1);
+  assert.equal(progressEvents.at(-1).stored,true);
+  assert.equal(storedLeadBatches.length,13);
+  assert.ok(storedLeadBatches.every(batch=>batch.context.searchRunId===run.id));
 });

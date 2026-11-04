@@ -11,9 +11,10 @@ Node.js REST backend for one authorized Upwork account. Job discovery is started
 - Searches run serially through conservative local rate limits.
 - Overlapping search cycles return HTTP `409`.
 - Jobs are deduplicated within a search cycle.
+- Discovered jobs are upserted into MongoDB as leads across search cycles.
 - Search progress and results remain in memory for 15 minutes after completion.
 - No scheduled or recurring Upwork polling.
-- No database persistence or scoring yet.
+- No lead scoring yet.
 
 ## Why discovery is manually triggered
 
@@ -27,6 +28,7 @@ Upwork publishes Search and Discovery rate limits but separately advises clients
 
 - Node.js 22 or newer
 - npm
+- MongoDB 6 or newer, or a MongoDB Atlas connection
 - An Upwork account with access to Upwork MCP
 
 ## Project structure
@@ -65,6 +67,9 @@ Copy `.env.example` to `.env`, then configure:
 ```dotenv
 PORT=5050
 PUBLIC_BASE_URL=http://localhost:5050
+FRONTEND_ORIGIN=http://localhost:3000
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DATABASE_NAME=esclatech_upwork
 UPWORK_MCP_URL=https://mcp.upwork.com/mcp
 TARGET_COUNTRY=United States
 DASHBOARD_API_KEY=REPLACE_WITH_RANDOM_LONG_SECRET
@@ -74,7 +79,7 @@ AUTOMATED_POLLING_ENABLED=false
 
 `TARGET_COUNTRY` must be either `United States` or `Canada`.
 
-Generate separate secrets for `DASHBOARD_API_KEY` and `TOKEN_ENCRYPTION_KEY`. Keep both on the backend and never expose them in browser JavaScript.
+Generate separate secrets for `DASHBOARD_API_KEY` and `TOKEN_ENCRYPTION_KEY`. Keep `TOKEN_ENCRYPTION_KEY` on the backend. The current API-key authentication model is intended for a private, trusted dashboard; use short-lived user tokens before exposing the dashboard publicly.
 
 ## Run locally
 
@@ -84,6 +89,8 @@ From the VS Code PowerShell terminal:
 npm.cmd install
 npm.cmd run dev
 ```
+
+The development command uses Nodemon and restarts the server when `server.mjs`, files under `src/`, or `.env` change. Runtime failures remain visible in the terminal with source-mapped stack traces.
 
 For normal mode without file watching:
 
@@ -168,6 +175,55 @@ Each returned job includes its Upwork posting timestamp and every configured key
 
 The run object also includes `jobsCount`, which is the number of unique jobs discovered so far and always matches the length of the `jobs` array.
 
+## Real-time search progress
+
+Install `socket.io-client` in the frontend, connect to the backend, and register the progress listener before subscribing to the run returned by `POST /v1/search-runs`:
+
+```js
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:5050', {
+  auth: {
+    apiKey: dashboardApiKey
+  }
+});
+
+socket.on('connect_error', error => {
+  console.error('Search progress connection failed:', error.message);
+});
+
+socket.on('search-run:progress', progress => {
+  console.log(
+    `${progress.completedRequests}/${progress.plannedRequests}`,
+    progress.status,
+    progress.jobs
+  );
+});
+
+socket.emit(
+  'search-run:subscribe',
+  { runId: run.id },
+  acknowledgement => {
+    if (!acknowledgement.success) {
+      console.error(acknowledgement.error);
+    }
+  }
+);
+
+// When the page no longer needs this run:
+socket.emit('search-run:unsubscribe', { runId: run.id });
+```
+
+`search-run:progress` is emitted after every completed Upwork request and once after the run becomes `complete`, `partial`, or `failed`. Each payload contains the cumulative run snapshot, including `completedRequests`, `plannedRequests`, `jobs`, `jobsCount`, `errors`, and `lastCompletedSearch`.
+
+## Lead persistence
+
+Each discovered Upwork job is upserted into the `leads` MongoDB collection. `externalId` and `url` are unique, while repeated discoveries merge `searchedKeywords` and `skills` using MongoDB set operations.
+
+Lead documents contain `externalId`, `title`, `url`, `source`, `country`, `budget`, `jobType`, `duration`, `postedAt`, `searchedKeywords`, `skills`, `summary`, `lastSearchRunId`, `createdAt`, and `updatedAt`.
+
+The search run's `stored` property is `true` when all discovered lead batches were saved. A MongoDB write failure does not stop the remaining Upwork searches, but it makes the run `partial` and sets `stored` to `false`.
+
 ## Search API routes
 
 | Method | Route | Purpose |
@@ -176,6 +232,34 @@ The run object also includes `jobsCount`, which is the number of unique jobs dis
 | GET | `/v1/search-runs/:id` | Read run progress and transient results |
 
 These are the only application-facing search routes.
+
+## Leads API
+
+`GET /v1/leads` returns paginated leads and defaults to jobs whose `postedAt` falls within the current UTC day.
+
+```powershell
+# Today's leads
+Invoke-RestMethod `
+  -Uri "http://localhost:5050/v1/leads?page=1&limit=10" `
+  -Headers $headers
+
+# One UTC day
+Invoke-RestMethod `
+  -Uri "http://localhost:5050/v1/leads?date=2026-11-04" `
+  -Headers $headers
+
+# One UTC month with keyword search
+Invoke-RestMethod `
+  -Uri "http://localhost:5050/v1/leads?month=2026-11&searchedKeyword=Node.js" `
+  -Headers $headers
+
+# Inclusive UTC day range
+Invoke-RestMethod `
+  -Uri "http://localhost:5050/v1/leads?fromDate=2026-10-01&toDate=2026-11-04" `
+  -Headers $headers
+```
+
+Supported query parameters are `page`, `limit` (maximum 100), `date`, `month`, `fromDate`, `toDate`, `searchedKeyword`, and `sortBy`. Use only one date mode at a time. Supported sort fields are `title`, `country`, `postedAt`, `createdAt`, and `updatedAt`; for example, `sortBy=postedAt:desc,title:asc`.
 
 ## Operational support routes
 
@@ -200,8 +284,8 @@ npm.cmd test
 npm.cmd run check
 ```
 
-Offline tests cover the 13-keyword search plan, country validation, result filtering, deduplication, and local rate limits. Live OAuth and MCP calls require an authorized account.
+Offline tests cover the 13-keyword search plan, country validation, result filtering, deduplication, MongoDB upsert construction, Socket.IO progress, and local rate limits. Live OAuth, MCP calls, and MongoDB connectivity require configured services.
 
 ## Planned next phase
 
-The next phase can add MongoDB persistence, cross-run deduplication, configurable lead scoring, and a filtered `GET /v1/jobs` endpoint. Scheduled discovery remains disabled.
+The next phase can add configurable lead scoring and lead workflow statuses. Scheduled discovery remains disabled.

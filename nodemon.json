@@ -1,0 +1,14 @@
+{
+  "watch": [
+    "server.mjs",
+    "src",
+    ".env"
+  ],
+  "ext": "mjs,json,env",
+  "ignore": [
+    "data/**",
+    "tests/**"
+  ],
+  "exec": "node --enable-source-maps server.mjs",
+  "delay": 300
+}

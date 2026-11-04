@@ -9,10 +9,13 @@ const positiveInteger=(value,fallback,name)=>{
 export const loadEnvironment=(env=process.env)=>{
   const port=positiveInteger(env.PORT,5050,'PORT');
   const publicBaseUrl=env.PUBLIC_BASE_URL||`http://localhost:${port}`;
+  const frontendOrigin=new URL(env.FRONTEND_ORIGIN||publicBaseUrl).origin;
   const targetCountry=env.TARGET_COUNTRY||'United States';
   const apiKey=env.DASHBOARD_API_KEY;
+  const mongodbUri=env.MONGODB_URI;
 
   if (!apiKey||apiKey.length<32||apiKey.startsWith('REPLACE')) throw new Error('Set DASHBOARD_API_KEY to a random secret of 32+ characters');
+  if (!mongodbUri||!/^mongodb(?:\+srv)?:\/\//.test(mongodbUri)) throw new Error('Set MONGODB_URI to a valid MongoDB connection string');
   if (!/^[0-9a-fA-F]{64}$/.test(env.TOKEN_ENCRYPTION_KEY||'')) throw new Error('Set TOKEN_ENCRYPTION_KEY to 64 hex characters');
   if (!COUNTRIES.includes(targetCountry)) throw new Error('TARGET_COUNTRY must be United States or Canada');
   if (env.AUTOMATED_POLLING_ENABLED==='true') throw new Error('Automated recurring Upwork polling is disabled in this build');
@@ -21,8 +24,11 @@ export const loadEnvironment=(env=process.env)=>{
   return Object.freeze({
     port,
     publicBaseUrl,
+    frontendOrigin,
     targetCountry,
     apiKey,
+    mongodbUri,
+    mongodbDatabaseName:env.MONGODB_DATABASE_NAME||'esclatech_upwork',
     tokenEncryptionKey:env.TOKEN_ENCRYPTION_KEY,
     upworkMcpUrl:env.UPWORK_MCP_URL||'https://mcp.upwork.com/mcp',
     quota:Object.freeze({
