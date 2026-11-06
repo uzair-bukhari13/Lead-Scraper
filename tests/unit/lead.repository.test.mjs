@@ -22,6 +22,7 @@ test('lead repository upserts jobs and merges keyword and skill arrays',async()=
     jobType:'Fixed-price',
     duration:'1 to 3 months',
     postedAt:'2026-11-03T21:35:49.142Z',
+    hasAttachments:true,
     searchedKeywords:['Web development','Web development'],
     skills:['Node.js','MongoDB','Node.js'],
     summary:'Build an API'
@@ -34,6 +35,7 @@ test('lead repository upserts jobs and merges keyword and skill arrays',async()=
   assert.deepEqual(operation.filter,{externalId:'2117709706166172517'});
   assert.equal(operation.upsert,true);
   assert.equal(operation.update.$set.budget,'{"amount":500}');
+  assert.equal(operation.update.$set.hasAttachments,true);
   assert.equal(operation.update.$set.lastSearchRunId,'run-123');
   assert.deepEqual(
     operation.update.$addToSet.searchedKeywords.$each,

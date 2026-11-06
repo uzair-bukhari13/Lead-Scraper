@@ -13,7 +13,7 @@ const pause = milliseconds =>
 const createHttpError = (message, statusCode) =>
   Object.assign(new Error(message), { statusCode });
 
-const createSearchRunRecord = ({ country, plannedRequests }) => ({
+const createSearchRunRecord = ({ country, keywords, plannedRequests }) => ({
   id: randomUUID(),
   status: 'running',
   startedAt: new Date().toISOString(),
@@ -26,6 +26,7 @@ const createSearchRunRecord = ({ country, plannedRequests }) => ({
   jobsCount: 0,
   trigger: 'manual',
   country,
+  keywords,
   stored: false
 });
 
@@ -45,6 +46,9 @@ const addUniqueJobsToRun = (run, jobsById, jobs) => {
         existingJob.searchedKeywords.push(searchedKeyword);
       }
     }
+
+    existingJob.hasAttachments =
+      existingJob.hasAttachments || job.hasAttachments;
   }
 };
 
@@ -168,16 +172,17 @@ export const createSearchRunsService = (
     }
   };
 
-  const startManualRun = ({ country, limit = 10 } = {}) => {
+  const startManualRun = ({ country, limit = 10, keywords = KEYWORDS } = {}) => {
     repository.removeExpired();
 
     if (busy) {
       throw createHttpError(SEARCH_RUN_MESSAGES.busy, 409);
     }
 
-    const searches = expandSearches({ keywords: KEYWORDS, country });
+    const searches = expandSearches({ keywords, country });
     const run = createSearchRunRecord({
       country,
+      keywords: searches.map(search => search.keyword),
       plannedRequests: searches.length
     });
 
@@ -191,7 +196,8 @@ export const createSearchRunsService = (
       id: run.id,
       status: run.status,
       plannedRequests: run.plannedRequests,
-      jobsCount: run.jobsCount
+      jobsCount: run.jobsCount,
+      keywords: run.keywords
     };
   };
 

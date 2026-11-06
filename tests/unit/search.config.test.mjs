@@ -15,9 +15,9 @@ test('country whitelist requires actual US/Canada metadata',()=>{
   assert.equal(normalizeCountry('North America'),null);
   assert.equal(normalizeCountry(undefined),null);
 });
-test('jobs are deduplicated and unrelated countries are excluded',()=>{
+test('jobs are deduplicated, attachment state is derived, and unrelated countries are excluded',()=>{
   const results=formatJobs([
-    {id:'123',title:'One',url:'https://www.upwork.com/jobs/~02123',client:{country:'USA'}},
+    {id:'123',title:'One',url:'https://www.upwork.com/jobs/~02123',client:{country:'USA'},attachments:[{id:'attachment-1'}]},
     {id:'123',title:'Duplicate',url:'https://www.upwork.com/jobs/~02123',client:{country:'United States'}},
     {id:'124',title:'Unknown',url:'https://www.upwork.com/jobs/~02124',client:{}},
     {id:'125',title:'Foreign',url:'https://www.upwork.com/jobs/~02125',client:{country:'Australia'}},
@@ -25,4 +25,6 @@ test('jobs are deduplicated and unrelated countries are excluded',()=>{
   ],null,'Web development');
   assert.deepEqual(results.map(result=>result.id),['123','126']);
   assert.deepEqual(results[0].searchedKeywords,['Web development']);
+  assert.equal(results[0].hasAttachments,true);
+  assert.equal(results[1].hasAttachments,false);
 });

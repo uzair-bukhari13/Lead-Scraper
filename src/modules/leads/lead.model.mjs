@@ -49,6 +49,10 @@ const leadSchema = new Schema(
       type: Date,
       default: null
     },
+    hasAttachments: {
+      type: Boolean,
+      default: false
+    },
     searchedKeywords: {
       type: [String],
       default: []

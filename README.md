@@ -58,7 +58,7 @@ esclatech-upwork-mcp-backend/
 └── README.md
 ```
 
-See [docs/architecture.md](docs/architecture.md) for layer responsibilities and request flow.
+See [docs/architecture.md](docs/architecture.md) for layer responsibilities and request flow. Frontend developers should use [docs/frontend-integration.md](docs/frontend-integration.md) for the complete REST and Socket.IO integration flow.
 
 ## Configuration
 
@@ -80,6 +80,8 @@ AUTOMATED_POLLING_ENABLED=false
 `TARGET_COUNTRY` must be either `United States` or `Canada`.
 
 Generate separate secrets for `DASHBOARD_API_KEY` and `TOKEN_ENCRYPTION_KEY`. Keep `TOKEN_ENCRYPTION_KEY` on the backend. The current API-key authentication model is intended for a private, trusted dashboard; use short-lived user tokens before exposing the dashboard publicly.
+
+Run only one `npm run dev` process for this backend. Nodemon owns the child server and restarts it after source changes. If startup reports that port `5050` is already in use, another backend process or watcher is already running; stop that process instead of launching another watcher. In production, run one process per configured port and place multiple instances behind a process manager or load balancer.
 
 ## Run locally
 
@@ -123,11 +125,14 @@ Open the returned `authorizationUrl` and complete authorization at Upwork.
 
 ## Manual discovery cycle
 
-Start all 13 configured keyword searches against `TARGET_COUNTRY`:
+Start the 13 configured keyword searches against `TARGET_COUNTRY`, or supply an optional `keywords` array containing 1–13 manual search terms:
 
 ```powershell
 $headers = @{ 'x-api-key' = $env:DASHBOARD_API_KEY }
-$body = @{ limit = 10 } | ConvertTo-Json
+$body = @{
+  limit = 10
+  keywords = @('React development', 'Node.js API', 'Shopify')
+} | ConvertTo-Json
 
 $run = Invoke-RestMethod -Method Post `
   -Uri http://localhost:5050/v1/search-runs `
@@ -235,10 +240,10 @@ These are the only application-facing search routes.
 
 ## Leads API
 
-`GET /v1/leads` returns paginated leads and defaults to jobs whose `postedAt` falls within the current UTC day.
+`GET /v1/leads` returns all saved leads by default. Use `date`, `month`, or `fromDate`/`toDate` to restrict results by `postedAt`.
 
 ```powershell
-# Today's leads
+# All saved leads
 Invoke-RestMethod `
   -Uri "http://localhost:5050/v1/leads?page=1&limit=10" `
   -Headers $headers

@@ -2,18 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLeadListQuery } from '../../src/modules/leads/lead.validation.mjs';
 
-test('lead list defaults to the current UTC day',()=>{
-  const result=parseLeadListQuery({}, {
-    now:new Date('2026-11-04T20:30:00.000Z')
-  });
+test('lead list has no implicit date filter',()=>{
+  const result=parseLeadListQuery({});
 
-  assert.deepEqual(result.filter.postedAt,{
-    $gte:new Date('2026-11-04T00:00:00.000Z'),
-    $lt:new Date('2026-11-05T00:00:00.000Z')
-  });
+  assert.deepEqual(result.filter,{});
   assert.equal(result.options.page,1);
   assert.equal(result.options.limit,10);
   assert.equal(result.options.sortBy,'postedAt:desc');
+});
+
+test('lead list supports an explicit Pakistan calendar date filter',()=>{
+  const result=parseLeadListQuery({date:'2026-11-04'});
+
+  assert.deepEqual(result.filter.postedAt,{
+    $gte:new Date('2026-11-03T19:00:00.000Z'),
+    $lt:new Date('2026-11-04T19:00:00.000Z')
+  });
 });
 
 test('lead list supports month and searched keyword filters',()=>{
@@ -25,8 +29,8 @@ test('lead list supports month and searched keyword filters',()=>{
   });
 
   assert.deepEqual(result.filter.postedAt,{
-    $gte:new Date('2026-11-01T00:00:00.000Z'),
-    $lt:new Date('2026-12-01T00:00:00.000Z')
+    $gte:new Date('2026-10-31T19:00:00.000Z'),
+    $lt:new Date('2026-11-30T19:00:00.000Z')
   });
   assert.equal(result.options.search,'Node.js');
   assert.deepEqual(result.options.searchFields,['searchedKeywords']);
@@ -34,15 +38,15 @@ test('lead list supports month and searched keyword filters',()=>{
   assert.equal(result.options.limit,25);
 });
 
-test('lead list custom toDate includes the full UTC day',()=>{
+test('lead list custom toDate includes the full Pakistan calendar day',()=>{
   const result=parseLeadListQuery({
     fromDate:'2026-10-30',
     toDate:'2026-11-04'
   });
 
   assert.deepEqual(result.filter.postedAt,{
-    $gte:new Date('2026-10-30T00:00:00.000Z'),
-    $lt:new Date('2026-11-05T00:00:00.000Z')
+    $gte:new Date('2026-10-29T19:00:00.000Z'),
+    $lt:new Date('2026-11-04T19:00:00.000Z')
   });
 });
 

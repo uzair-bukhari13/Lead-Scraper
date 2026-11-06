@@ -3,6 +3,7 @@ import { LEAD_MESSAGES } from './lead.messages.mjs';
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
 const MAX_LIMIT = 100;
+const PAKISTAN_UTC_OFFSET_MS = 5 * 60 * 60 * 1000;
 const ALLOWED_SORT_FIELDS = new Set([
   'title',
   'country',
@@ -32,7 +33,7 @@ const parsePositiveInteger = (value, fallback, message, maximum = Infinity) => {
   return parsed;
 };
 
-const parseUtcDate = value => {
+const parsePakistanDate = value => {
   const match = String(value).match(DATE_PATTERN);
 
   if (!match) {
@@ -53,13 +54,13 @@ const parseUtcDate = value => {
     throw createValidationError(LEAD_MESSAGES.INVALID_DATE);
   }
 
-  return date;
+  return new Date(date.getTime() - PAKISTAN_UTC_OFFSET_MS);
 };
 
 const addUtcDays = (date, days) =>
   new Date(date.getTime() + days * 86_400_000);
 
-const parseUtcMonthRange = value => {
+const parsePakistanMonthRange = value => {
   const match = String(value).match(MONTH_PATTERN);
 
   if (!match) {
@@ -75,12 +76,12 @@ const parseUtcMonthRange = value => {
   }
 
   return {
-    $gte: new Date(Date.UTC(year, month - 1, 1)),
-    $lt: new Date(Date.UTC(year, month, 1))
+    $gte: new Date(Date.UTC(year, month - 1, 1) - PAKISTAN_UTC_OFFSET_MS),
+    $lt: new Date(Date.UTC(year, month, 1) - PAKISTAN_UTC_OFFSET_MS)
   };
 };
 
-const createPostedAtFilter = (query, now) => {
+const createPostedAtFilter = query => {
   const hasDate = typeof query.date !== 'undefined';
   const hasMonth = typeof query.month !== 'undefined';
   const hasRange =
@@ -93,15 +94,15 @@ const createPostedAtFilter = (query, now) => {
   }
 
   if (hasMonth) {
-    return parseUtcMonthRange(query.month);
+    return parsePakistanMonthRange(query.month);
   }
 
   if (hasRange) {
     const fromDate = query.fromDate
-      ? parseUtcDate(query.fromDate)
+      ? parsePakistanDate(query.fromDate)
       : null;
     const toDate = query.toDate
-      ? parseUtcDate(query.toDate)
+      ? parsePakistanDate(query.toDate)
       : null;
 
     if (fromDate && toDate && toDate < fromDate) {
@@ -114,9 +115,11 @@ const createPostedAtFilter = (query, now) => {
     };
   }
 
-  const date = hasDate
-    ? parseUtcDate(query.date)
-    : parseUtcDate(now.toISOString().slice(0, 10));
+  if (!hasDate) {
+    return null;
+  }
+
+  const date = parsePakistanDate(query.date);
 
   return {
     $gte: date,
@@ -160,20 +163,22 @@ const parseSearchedKeyword = value => {
   return value.trim();
 };
 
-export const parseLeadListQuery = (query = {}, { now = new Date() } = {}) => ({
-  filter: {
-    postedAt: createPostedAtFilter(query, now)
-  },
-  options: {
-    page: parsePositiveInteger(query.page, 1, LEAD_MESSAGES.INVALID_PAGE),
-    limit: parsePositiveInteger(
-      query.limit,
-      10,
-      LEAD_MESSAGES.INVALID_LIMIT,
-      MAX_LIMIT
-    ),
-    search: parseSearchedKeyword(query.searchedKeyword),
-    searchFields: ['searchedKeywords'],
-    sortBy: parseSortBy(query.sortBy)
-  }
-});
+export const parseLeadListQuery = (query = {}) => {
+  const postedAt = createPostedAtFilter(query);
+
+  return {
+    filter: postedAt ? { postedAt } : {},
+    options: {
+      page: parsePositiveInteger(query.page, 1, LEAD_MESSAGES.INVALID_PAGE),
+      limit: parsePositiveInteger(
+        query.limit,
+        10,
+        LEAD_MESSAGES.INVALID_LIMIT,
+        MAX_LIMIT
+      ),
+      search: parseSearchedKeyword(query.searchedKeyword),
+      searchFields: ['searchedKeywords'],
+      sortBy: parseSortBy(query.sortBy)
+    }
+  };
+};

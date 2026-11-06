@@ -1,11 +1,13 @@
 import express from 'express';
 import { createApiKeyMiddleware } from '../middlewares/api-key.middleware.mjs';
+import { createCorsMiddleware } from '../middlewares/cors.middleware.mjs';
 import { errorHandler, notFoundHandler } from '../middlewares/error.middleware.mjs';
 import { createRoutes } from '../routes.mjs';
 
-export const createApp=({apiKey,mcp,leadService,searchRunsService,targetCountry})=>{
+export const createApp=({apiKey,frontendOrigin,mcp,leadService,searchRunsService,targetCountry})=>{
   const app=express();
   app.disable('x-powered-by');
+  app.use(createCorsMiddleware(frontendOrigin));
   app.use(express.json({limit:'12kb'}));
   app.use((_req,res,next)=>{
     res.setHeader('Cache-Control','no-store, private');

@@ -58,3 +58,23 @@ test('manual run performs all 13 searches for the configured country',async()=>{
   assert.equal(storedLeadBatches.length,13);
   assert.ok(storedLeadBatches.every(batch=>batch.context.searchRunId===run.id));
 });
+
+test('manual run searches only the supplied keywords',async()=>{
+  const calls=[];
+  const mcp={call:async(action,params)=>{
+    calls.push({action,params});
+    return {jobs:[]};
+  }};
+  const quota={nextAvailableMs:()=>0,reserve:()=>{}};
+  const service=createSearchRunsService(mcp,quota);
+  const keywords=['React development','Node.js API'];
+
+  const started=service.startManualRun({country:'Canada',limit:4,keywords});
+  const run=await waitForFinishedRun(service,started.id);
+
+  assert.equal(started.plannedRequests,2);
+  assert.deepEqual(started.keywords,keywords);
+  assert.deepEqual(run.keywords,keywords);
+  assert.deepEqual(calls.map(call=>call.params.query),keywords);
+  assert.ok(calls.every(call=>call.params.limit===4));
+});

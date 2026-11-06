@@ -7,6 +7,14 @@ export const canonicalJobId=job=>{
   return match?match[1]:null;
 };
 
+const hasAttachments=job=>{
+  if (Array.isArray(job?.attachments)) return job.attachments.length>0;
+  if (Array.isArray(job?.attachment)) return job.attachment.length>0;
+  if (typeof job?.hasAttachments==='boolean') return job.hasAttachments;
+  if (typeof job?.has_attachments==='boolean') return job.has_attachments;
+  return false;
+};
+
 export const formatJobs=(jobs,location=null,searchedKeyword=null)=>{
   if (!Array.isArray(jobs)) return [];
   const ids=new Set();
@@ -31,6 +39,7 @@ export const formatJobs=(jobs,location=null,searchedKeyword=null)=>{
       jobType:job.job_type??null,
       duration:job.duration??null,
       postedAt:job.published_date??job.created_date??null,
+      hasAttachments:hasAttachments(job),
       searchedKeywords:searchedKeyword?[searchedKeyword]:[],
       skills:Array.isArray(job.skills)?job.skills:[],
       summary:typeof job.description_snippet==='string'

@@ -10,7 +10,7 @@
     "start": "node server.mjs",
     "dev": "nodemon --config nodemon.json",
     "test": "node --test tests/unit/*.test.mjs",
-    "check": "node --check server.mjs && node --check src/app/bootstrap.mjs && node --check src/routes.mjs && node --check src/infrastructure/database/mongodb.mjs && node --check src/middlewares/mongoose-pagination.middleware.mjs && node --check src/modules/leads/lead.controller.mjs && node --check src/modules/leads/lead.model.mjs && node --check src/modules/leads/lead.repository.mjs && node --check src/modules/leads/lead.routes.mjs && node --check src/modules/leads/lead.service.mjs && node --check src/modules/leads/lead.validation.mjs && node --check src/modules/search-runs/search-runs.service.mjs && node --check src/modules/search-runs/search-runs.socket.mjs"
+    "check": "node --check server.mjs && node --check src/app/bootstrap.mjs && node --check src/routes.mjs && node --check src/infrastructure/database/mongodb.mjs && node --check src/middlewares/cors.middleware.mjs && node --check src/middlewares/mongoose-pagination.middleware.mjs && node --check src/modules/leads/lead.controller.mjs && node --check src/modules/leads/lead.model.mjs && node --check src/modules/leads/lead.repository.mjs && node --check src/modules/leads/lead.routes.mjs && node --check src/modules/leads/lead.service.mjs && node --check src/modules/leads/lead.validation.mjs && node --check src/modules/search-runs/search-runs.service.mjs && node --check src/modules/search-runs/search-runs.socket.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",

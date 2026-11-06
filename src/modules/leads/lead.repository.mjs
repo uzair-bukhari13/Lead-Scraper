@@ -42,6 +42,7 @@ const createLeadUpsert = (lead, searchRunId) => ({
         jobType: toOptionalString(lead.jobType),
         duration: toOptionalString(lead.duration),
         postedAt: toOptionalDate(lead.postedAt),
+        hasAttachments: lead.hasAttachments === true,
         summary: toOptionalString(lead.summary),
         lastSearchRunId: searchRunId
       },

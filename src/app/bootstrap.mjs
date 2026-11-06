@@ -17,6 +17,35 @@ import {
 } from '../modules/leads/index.mjs';
 import { createApp } from './app.mjs';
 
+const listen = (server, port) =>
+  new Promise((resolve, reject) => {
+    const onError = error => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      resolve();
+    };
+
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port);
+  });
+
+const closeHttpServer = server =>
+  new Promise((resolve, reject) => {
+    if (!server.listening) {
+      resolve();
+      return;
+    }
+
+    server.close(error => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+
 export const bootstrap = async ({ projectDir, env = process.env } = {}) => {
   if (!projectDir) {
     throw new Error('projectDir is required');
@@ -58,6 +87,7 @@ export const bootstrap = async ({ projectDir, env = process.env } = {}) => {
   );
   const app = createApp({
     apiKey: config.apiKey,
+    frontendOrigin: config.frontendOrigin,
     mcp,
     leadService,
     searchRunsService,
@@ -66,11 +96,30 @@ export const bootstrap = async ({ projectDir, env = process.env } = {}) => {
   const server = createServer(app);
 
   searchRunsSocket.attach(server);
-  server.listen(config.port, () => {
-    console.log(
-      `Esclatech Upwork MCP backend listening on ${config.publicBaseUrl}; manual searches only.`
-    );
-  });
+  try {
+    await listen(server, config.port);
+  } catch (error) {
+    await searchRunsSocket.close().catch(() => {});
+    await database.disconnect().catch(() => {});
+    throw error;
+  }
+
+  console.log(
+    `Esclatech Upwork MCP backend listening on ${config.publicBaseUrl}; manual searches only.`
+  );
+
+  let shutdownPromise = null;
+  const shutdown = () => {
+    if (shutdownPromise) return shutdownPromise;
+
+    shutdownPromise = (async () => {
+      await searchRunsSocket.close();
+      await closeHttpServer(server);
+      await database.disconnect();
+    })();
+
+    return shutdownPromise;
+  };
 
   return {
     app,
@@ -82,6 +131,7 @@ export const bootstrap = async ({ projectDir, env = process.env } = {}) => {
     leadRepository,
     leadService,
     searchRunsService,
-    searchRunsSocket
+    searchRunsSocket,
+    shutdown
   };
 };
