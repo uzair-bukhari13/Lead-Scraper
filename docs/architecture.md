@@ -18,9 +18,11 @@ The backend uses a small feature-based modular structure.
 ## Boundaries
 
 - config: validated environment and fixed search configuration.
-- infrastructure: MongoDB, MCP, OAuth, encrypted files, and quota persistence.
+- infrastructure: MongoDB, MCP, encrypted MongoDB-backed OAuth credentials, and atomic quota persistence.
 - middlewares: reusable HTTP concerns.
 - modules: feature-owned routes, controllers, validation, services, repositories, and socket adapters.
 - app: application composition and startup.
+
+OAuth client information, tokens, PKCE verifier, and callback state are stored as encrypted fields in the MongoDB `application_state` collection. The Upwork request quota is kept in a separate document in the same collection and updated atomically, so function instances share the same limits.
 
 The in-memory repository returned by `createSearchRunRepository` is intentionally isolated so a MongoDB repository can replace it later without changing the HTTP routes or search orchestration.

@@ -4,9 +4,18 @@ import { createCorsMiddleware } from '../middlewares/cors.middleware.mjs';
 import { errorHandler, notFoundHandler } from '../middlewares/error.middleware.mjs';
 import { createRoutes } from '../routes.mjs';
 
-export const createApp=({apiKey,frontendOrigin,mcp,leadService,searchRunsService,targetCountry})=>{
+export const createApp=({apiKey,frontendOrigin,mcp,leadService,searchRunsService,targetCountry,allowHttpSearchStart=true})=>{
   const app=express();
   app.disable('x-powered-by');
+  app.use((req,_res,next)=>{
+    for (const functionPrefix of ['/api/backend', '/backend']) {
+      if (req.url===functionPrefix||req.url.startsWith(`${functionPrefix}/`)) {
+        req.url=req.url.slice(functionPrefix.length)||'/';
+        break;
+      }
+    }
+    next();
+  });
   app.use(createCorsMiddleware(frontendOrigin));
   app.use(express.json({limit:'12kb'}));
   app.use((_req,res,next)=>{
@@ -18,7 +27,7 @@ export const createApp=({apiKey,frontendOrigin,mcp,leadService,searchRunsService
   });
 
   const requireApiKey=createApiKeyMiddleware(apiKey);
-  app.use(createRoutes({mcp,leadService,searchRunsService,targetCountry,requireApiKey}));
+  app.use(createRoutes({mcp,leadService,searchRunsService,targetCountry,requireApiKey,allowHttpSearchStart}));
   app.use(notFoundHandler);
   app.use(errorHandler);
   return app;

@@ -1,6 +1,6 @@
 # Manual keyword search integration
 
-This document describes how the frontend starts and monitors an Upwork search using user-supplied keywords.
+This document describes how the frontend starts and monitors an Upwork search using user-supplied keywords. On Vercel, searches must be started through the authenticated `search-run:start` Socket.IO event so the function handling the request also owns the progress socket. The HTTP endpoint below is for local development.
 
 ## Endpoint
 
@@ -14,6 +14,13 @@ Local backend URL:
 
 ```text
 http://localhost:5050/v1/search-runs
+```
+
+Vercel backend URL:
+
+```text
+https://<deployment>.vercel.app/api/backend
+Socket.IO path: /api/backend/socket.io
 ```
 
 ## Request body
@@ -40,7 +47,7 @@ The country cannot be supplied by the browser. The backend uses its configured `
 
 Each keyword causes one Upwork search request. For example, three keywords with `limit: 10` produce three requests and may discover up to 30 jobs before duplicate jobs are merged.
 
-## Successful response
+## Successful local HTTP response
 
 The endpoint returns HTTP `202 Accepted` immediately while the search continues in the background:
 
@@ -61,7 +68,7 @@ The endpoint returns HTTP `202 Accepted` immediately while the search continues 
 
 `plannedRequests` is the number of unique cleaned keywords accepted by the backend.
 
-## Frontend request helper
+## Local HTTP request helper
 
 ```js
 export async function startSearchRun({ keywords, limit = 10 }) {
@@ -88,7 +95,49 @@ await apiRequest('/v1/search-runs', {
 });
 ```
 
-## Monitoring the run
+## Vercel Socket.IO start and monitoring
+
+Connect with the WebSocket transport and the dashboard API key. Register the progress listener before emitting `search-run:start`; the server joins this socket to the run room before search work begins.
+
+```js
+import { io } from 'socket.io-client';
+
+const API_BASE_URL = 'https://<deployment>.vercel.app/api/backend';
+const socket = io(API_BASE_URL, {
+  path: '/api/backend/socket.io',
+  transports: ['websocket'],
+  auth: { apiKey: DASHBOARD_API_KEY },
+  autoConnect: false
+});
+
+let activeRunId = null;
+socket.on('search-run:progress', progress => {
+  if (progress.id !== activeRunId) return;
+  renderProgress(progress);
+  if (['complete', 'partial', 'failed'].includes(progress.status)) {
+    activeRunId = null;
+    loadLeads();
+  }
+});
+
+socket.connect();
+await new Promise((resolve, reject) => {
+  socket.once('connect', resolve);
+  socket.once('connect_error', reject);
+});
+
+const started = await socket.timeout(5000).emitWithAck('search-run:start', {
+  limit: 10,
+  keywords: ['React development', 'Node.js API', 'Shopify']
+});
+if (!started.success) throw new Error(started.error);
+activeRunId = started.id;
+renderProgress(started);
+```
+
+If the socket disconnects, Socket.IO reconnects automatically. Reconnect and reload the leads list after the run completes; run state and socket rooms are in memory and are not shared across function instances.
+
+## Monitoring a local HTTP-started run
 
 Register the progress listener before starting a search. After receiving the `202` response:
 

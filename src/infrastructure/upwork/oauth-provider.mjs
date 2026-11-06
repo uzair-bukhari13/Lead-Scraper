@@ -1,13 +1,8 @@
 import { randomBytes } from 'node:crypto';
 
-export const createUpworkOAuthProvider = (secureFile, publicBaseUrl) => {
+export const createUpworkOAuthProvider = (secureStore, publicBaseUrl) => {
   const baseUrl = publicBaseUrl.replace(/\/$/, '');
-  let record = secureFile.read({});
   let authorizationUrl = null;
-
-  const save = () => {
-    secureFile.write(record);
-  };
 
   const redirectUrl = `${baseUrl}/v1/auth/upwork/callback`;
   const clientMetadata = {
@@ -18,67 +13,64 @@ export const createUpworkOAuthProvider = (secureFile, publicBaseUrl) => {
     token_endpoint_auth_method: 'none'
   };
 
-  const clientInformation = () => record.clientInformation;
+  const clientInformation = () => secureStore.get('clientInformation');
 
-  const saveClientInformation = value => {
-    record.clientInformation = value;
-    save();
-  };
+  const saveClientInformation = value =>
+    secureStore.set('clientInformation', value);
 
-  const tokens = () => record.tokens;
+  const tokens = () => secureStore.get('tokens');
 
-  const saveTokens = value => {
-    record.tokens = value;
-    save();
-  };
+  const saveTokens = value => secureStore.set('tokens', value);
 
-  const state = () => {
-    record.pendingState = randomBytes(32).toString('hex');
-    record.pendingStartedAt = Date.now();
-    save();
-    return record.pendingState;
+  const state = async () => {
+    const pendingState = randomBytes(32).toString('hex');
+    await secureStore.set('pendingState', {
+      value: pendingState,
+      startedAt: Date.now()
+    });
+    return pendingState;
   };
 
   const redirectToAuthorization = url => {
     authorizationUrl = url.toString();
   };
 
-  const saveCodeVerifier = value => {
-    record.codeVerifier = value;
-    save();
-  };
+  const saveCodeVerifier = value =>
+    secureStore.set('codeVerifier', value);
 
-  const codeVerifier = () => {
-    if (!record.codeVerifier) {
+  const codeVerifier = async () => {
+    const value = await secureStore.get('codeVerifier');
+
+    if (!value) {
       throw new Error('Missing OAuth PKCE verifier');
     }
 
-    return record.codeVerifier;
+    return value;
   };
 
-  const validCallbackState = value => {
-    const pendingStateExpired =
-      Date.now() - record.pendingStartedAt > 15 * 60_000;
+  const validCallbackState = async value => {
+    const pending = await secureStore.get('pendingState');
+    const pendingStateExpired = !pending ||
+      Date.now() - pending.startedAt > 15 * 60_000;
 
-    if (!value || !record.pendingState || pendingStateExpired) {
+    if (!value || !pending || pendingStateExpired) {
       return false;
     }
 
-    return value === record.pendingState;
+    return value === pending.value;
   };
 
-  const clearPending = () => {
-    delete record.pendingState;
-    delete record.pendingStartedAt;
-    delete record.codeVerifier;
+  const clearPending = async () => {
+    await Promise.all([
+      secureStore.remove('pendingState'),
+      secureStore.remove('codeVerifier')
+    ]);
     authorizationUrl = null;
-    save();
   };
 
-  const disconnect = () => {
-    record = {};
+  const disconnect = async () => {
+    await secureStore.clear();
     authorizationUrl = null;
-    save();
   };
 
   return Object.freeze({

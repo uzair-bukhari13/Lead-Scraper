@@ -4,7 +4,7 @@ import { asyncHandler } from '../../middlewares/async-handler.mjs';
 export const createAuthRouter=({mcp,requireApiKey})=>{
   const router=Router();
 
-  router.get('/status',requireApiKey,(_req,res)=>res.json(mcp.status()));
+  router.get('/status',requireApiKey,asyncHandler(async(_req,res)=>res.json(await mcp.status())));
   router.post('/start',requireApiKey,asyncHandler(async(_req,res)=>{
     const result=await mcp.startOAuth();
     res.status(result.connected?200:202).json(result);

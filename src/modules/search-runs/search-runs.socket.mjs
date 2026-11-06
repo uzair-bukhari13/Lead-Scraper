@@ -1,7 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import { Server } from 'socket.io';
+import { parseStartSearchRunInput } from './search-runs.validation.mjs';
 
 export const SEARCH_RUN_SOCKET_EVENTS = Object.freeze({
+  START: 'search-run:start',
   SUBSCRIBE: 'search-run:subscribe',
   UNSUBSCRIBE: 'search-run:unsubscribe',
   PROGRESS: 'search-run:progress'
@@ -28,8 +30,14 @@ const readRunId = payload => {
   return typeof runId === 'string' && UUID_PATTERN.test(runId) ? runId : null;
 };
 
-export const createSearchRunsSocket = ({ apiKey, frontendOrigin }) => {
+export const createSearchRunsSocket = ({
+  apiKey,
+  frontendOrigin,
+  path = '/socket.io',
+  startSearchRun
+}) => {
   const io = new Server({
+    path,
     cors: {
       origin: frontendOrigin,
       methods: ['GET', 'POST']
@@ -45,6 +53,24 @@ export const createSearchRunsSocket = ({ apiKey, frontendOrigin }) => {
   });
 
   io.on('connection', socket => {
+    socket.on(SEARCH_RUN_SOCKET_EVENTS.START, (payload, acknowledge) => {
+      try {
+        if (typeof startSearchRun !== 'function') {
+          throw new Error('Search start is unavailable');
+        }
+
+        const input = parseStartSearchRunInput(payload);
+        const run = startSearchRun({ ...input, socket });
+        acknowledge?.({ success: true, ...run });
+      } catch (error) {
+        acknowledge?.({
+          success: false,
+          error: error.message,
+          ...(error.statusCode ? { statusCode: error.statusCode } : {})
+        });
+      }
+    });
+
     socket.on(
       SEARCH_RUN_SOCKET_EVENTS.SUBSCRIBE,
       async (payload, acknowledge) => {
@@ -93,6 +119,9 @@ export const createSearchRunsSocket = ({ apiKey, frontendOrigin }) => {
     );
   };
 
+  const joinRunRoom = (socket, runId) =>
+    socket.join(createSearchRunRoom(runId));
+
   const close = () =>
     new Promise(resolve => {
       io.close(resolve);
@@ -100,6 +129,7 @@ export const createSearchRunsSocket = ({ apiKey, frontendOrigin }) => {
 
   return Object.freeze({
     attach,
+    joinRunRoom,
     publishProgress,
     close
   });

@@ -35,15 +35,15 @@ Upwork publishes Search and Discovery rate limits but separately advises clients
 
 ```text
 esclatech-upwork-mcp-backend/
-├── data/                         # Runtime OAuth and quota files (ignored by Git)
+├── data/                         # Local runtime data (ignored by Git)
 ├── docs/
 │   └── architecture.md
 ├── src/
 │   ├── app/                      # Express composition and dependency bootstrap
 │   ├── config/                   # Environment and search configuration
 │   ├── infrastructure/
-│   │   ├── persistence/          # Encrypted local credential storage
-│   │   ├── quota/                # Local request quota tracking
+│   │   ├── persistence/          # Encrypted MongoDB credential storage
+│   │   ├── quota/                # MongoDB-backed request quota tracking
 │   │   └── upwork/               # OAuth provider and Upwork MCP client
 │   ├── middlewares/              # API key, async, 404 and error handlers
 │   ├── modules/
@@ -274,13 +274,15 @@ Supported query parameters are `page`, `limit` (maximum 100), `date`, `month`, `
 | POST | `/v1/auth/upwork/start` | Start Upwork OAuth |
 | GET | `/v1/auth/upwork/callback` | Required OAuth callback |
 | GET | `/v1/auth/upwork/status` | Connection status |
-| POST | `/v1/auth/upwork/disconnect` | Clear local OAuth credentials |
+| POST | `/v1/auth/upwork/disconnect` | Clear persisted OAuth credentials |
 
 The support routes are required for initial authorization, reconnection, and health monitoring. Normal job discovery uses only the two search routes above.
 
 ## Rate management
 
-Local defaults are 10 requests/minute, 100/hour, 500/day, and at least seven seconds between Upwork calls. Counters are stored in `data/quota.json`. Upwork's server-side limits remain authoritative.
+Defaults are 10 requests/minute, 100/hour, 500/day, and at least seven seconds between Upwork calls. Quota history is stored in MongoDB so it is shared across serverless instances. OAuth client details, tokens, and pending PKCE state are also stored encrypted in MongoDB using `TOKEN_ENCRYPTION_KEY`. Upwork's server-side limits remain authoritative.
+
+After moving from the previous local-file storage, connect Upwork once through the OAuth flow to save credentials in MongoDB. Existing `data/upwork-oauth.enc.json` credentials are not imported automatically.
 
 ## Tests
 

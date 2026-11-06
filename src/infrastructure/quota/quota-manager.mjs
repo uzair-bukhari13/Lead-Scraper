@@ -15,6 +15,7 @@ export const createQuotaError = (waitMs, window) => {
 
 export const createQuotaManager = ({
   path,
+  collection,
   minute = 10,
   hour = 100,
   day = 500,
@@ -26,6 +27,152 @@ export const createQuotaManager = ({
     { label: 'hour', ms: 3_600_000, max: hour },
     { label: 'day', ms: 86_400_000, max: day }
   ];
+
+  if (collection) {
+    const stateId = 'upwork-search-quota';
+    const ensureState = async () => {
+      try {
+        await collection.updateOne(
+          { _id: stateId },
+          { $setOnInsert: { history: [] } },
+          { upsert: true }
+        );
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+      }
+    };
+
+    const readHistory = async () => {
+      await ensureState();
+      const state = await collection.findOne({ _id: stateId });
+      return Array.isArray(state?.history) ? state.history : [];
+    };
+
+    const blockedBy = (history, now) => {
+      const activeHistory = history.filter(
+        timestamp => Number.isFinite(timestamp) && timestamp >= now - 86_400_000
+      );
+      const lastRequestAt = activeHistory.at(-1);
+
+      if (lastRequestAt !== undefined && now < lastRequestAt + gapMs) {
+        return {
+          waitMs: lastRequestAt + gapMs - now,
+          window: 'spacing'
+        };
+      }
+
+      for (const { label, ms, max } of limits) {
+        const activeRequests = activeHistory.filter(
+          timestamp => timestamp > now - ms
+        );
+
+        if (activeRequests.length >= max) {
+          return {
+            waitMs: activeRequests[activeRequests.length - max] + ms - now + 1,
+            window: label
+          };
+        }
+      }
+
+      return null;
+    };
+
+    const checkMongo = async (now = clock()) =>
+      blockedBy(await readHistory(), now);
+
+    const reserveMongo = async () => {
+      const now = clock();
+      const conditions = [
+        {
+          $or: [
+            { $eq: [{ $size: '$history' }, 0] },
+            {
+              $lte: [
+                { $add: [{ $arrayElemAt: ['$history', -1] }, gapMs] },
+                now
+              ]
+            }
+          ]
+        },
+        ...limits.map(({ ms, max }) => ({
+          $lt: [
+            {
+              $size: {
+                $filter: {
+                  input: '$history',
+                  as: 'timestamp',
+                  cond: { $gt: ['$$timestamp', now - ms] }
+                }
+              }
+            },
+            max
+          ]
+        }))
+      ];
+
+      await ensureState();
+      const result = await collection.updateOne(
+        { _id: stateId, $expr: { $and: conditions } },
+        [
+          {
+            $set: {
+              history: {
+                $concatArrays: [
+                  {
+                    $filter: {
+                      input: '$history',
+                      as: 'timestamp',
+                      cond: { $gte: ['$$timestamp', now - 86_400_000] }
+                    }
+                  },
+                  [now]
+                ]
+              }
+            }
+          }
+        ]
+      );
+
+      if (result.modifiedCount === 1) {
+        return;
+      }
+
+      const blocked = blockedBy(await readHistory(), now);
+      if (blocked) {
+        throw createQuotaError(blocked.waitMs, blocked.window);
+      }
+
+      throw new Error('Could not reserve an Upwork quota slot');
+    };
+
+    const statsMongo = async () => {
+      const now = clock();
+      const history = await readHistory();
+      const blocked = blockedBy(history, now);
+
+      return {
+        source: 'MongoDB-persisted requests',
+        limits: Object.fromEntries(
+          limits.map(({ label, max, ms }) => [
+            label,
+            {
+              used: history.filter(timestamp => timestamp > now - ms).length,
+              max
+            }
+          ])
+        ),
+        nextAllowedInSeconds: Math.ceil((blocked?.waitMs || 0) / 1000)
+      };
+    };
+
+    return Object.freeze({
+      check: checkMongo,
+      reserve: reserveMongo,
+      nextAvailableMs: async () => (await checkMongo())?.waitMs || 0,
+      stats: statsMongo
+    });
+  }
+
   let history = [];
 
   if (path) {

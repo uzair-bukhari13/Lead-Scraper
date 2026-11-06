@@ -177,25 +177,19 @@ export const createUpworkMcpClient = (
   };
 
   const finishOAuth = async params => {
-    if (!pendingTransport) {
-      throw new Error(
-        'OAuth pending session is missing; restart connection'
-      );
-    }
-
     const state = params.get('state');
     const code = params.get('code');
 
-    if (!code || !provider.validCallbackState(state)) {
+    if (!code || !(await provider.validCallbackState(state))) {
       throw new Error('Invalid OAuth callback or expired state');
     }
 
-    await pendingTransport.finishAuth(
-      code,
-      params.get('iss') || undefined
-    );
+    const callbackTransport = new StreamableHTTPClientTransport(url, {
+      authProvider: provider
+    });
+    await callbackTransport.finishAuth(code);
 
-    provider.clearPending();
+    await provider.clearPending();
     pendingTransport = null;
     await openConnection();
   };
@@ -218,9 +212,9 @@ export const createUpworkMcpClient = (
     return output;
   };
 
-  const status = () => ({
+  const status = async () => ({
     connected: Boolean(client),
-    credentialPresent: Boolean(provider.tokens()),
+    credentialPresent: Boolean(await provider.tokens()),
     orgUidAvailable: Boolean(orgUid)
   });
 
@@ -233,7 +227,7 @@ export const createUpworkMcpClient = (
       pendingTransport = null;
       orgUid = null;
       toolNames.clear();
-      provider.disconnect();
+      await provider.disconnect();
     }
   };
 

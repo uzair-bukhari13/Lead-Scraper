@@ -12,6 +12,11 @@ Socket.IO path:         /socket.io
 Frontend origin:        http://localhost:3000
 ```
 
+For the Vercel deployment, set the backend base URL to
+`https://<deployment>.vercel.app/api/backend`. REST paths remain relative to
+that base URL. The Socket.IO path is `/api/backend/socket.io` and the client
+must use the WebSocket transport.
+
 The backend's `FRONTEND_ORIGIN` must exactly match the browser application's origin. REST requests and Socket.IO connections from that origin are allowed.
 
 Every endpoint except `GET /health` and the Upwork OAuth callback requires the dashboard API key:
@@ -56,11 +61,9 @@ sequenceDiagram
         UI->>API: Poll GET /v1/auth/upwork/status
     end
     UI->>Socket: Connect with auth.apiKey
-    UI->>API: POST /v1/search-runs
-    API-->>UI: 202 + run id + pollUrl
-    UI->>Socket: search-run:subscribe { runId }
-    Socket-->>UI: Subscription acknowledgement
-    UI->>API: GET pollUrl to hydrate current state
+    UI->>Socket: search-run:start { limit, keywords }
+    Socket-->>UI: Acknowledgement with run id
+    Socket->>Socket: Join this connection to the run room
     loop Each completed Upwork request
         API->>Mongo: Upsert discovered leads
         Socket-->>UI: search-run:progress
@@ -70,7 +73,7 @@ sequenceDiagram
     UI->>API: GET /v1/leads
 ```
 
-The immediate `GET pollUrl` after subscribing is important. A search starts before the `POST /v1/search-runs` response reaches the browser, so the first socket event could occur before the room subscription. Progress snapshots are cumulative, and the REST request provides authoritative recovery state.
+On Vercel, start the search with the `search-run:start` socket event. This keeps the search and progress delivery on the same function instance. The HTTP `POST /v1/search-runs` route remains available for local development; Vercel returns `405` for that route. If the socket disconnects, reconnect and reload the leads list after the run completes.
 
 ## REST client
 
@@ -228,6 +231,11 @@ Create one socket singleton for the application:
 import { io } from 'socket.io-client';
 
 export const socket = io(API_BASE_URL, {
+  path: (() => {
+    const basePath = new URL(API_BASE_URL).pathname.replace(/\/+$/, '');
+    return basePath ? `${basePath}/socket.io` : '/socket.io';
+  })(),
+  transports: ['websocket'],
   auth: {
     apiKey: dashboardApiKey
   },
@@ -251,6 +259,7 @@ Socket authentication failures arrive through `connect_error` with message `unau
 
 | Direction | Event | Payload |
 |---|---|---|
+| Frontend → backend | `search-run:start` | `{ limit?, keywords? }` |
 | Frontend → backend | `search-run:subscribe` | `{ runId }` |
 | Backend → frontend | `search-run:progress` | Complete cumulative run snapshot |
 | Frontend → backend | `search-run:unsubscribe` | `{ runId }` |
@@ -275,7 +284,7 @@ An invalid UUID receives:
 
 ## 4. Start and monitor a search run
 
-Register the progress listener before starting the run:
+Register the progress listener before starting the run. On Vercel, the start event automatically subscribes this socket to the run room:
 
 ```js
 let activeRunId = null;
@@ -321,29 +330,18 @@ HTTP `202` response:
 }
 ```
 
-Subscribe and immediately hydrate from REST:
+Start the run through the socket:
 
 ```js
 export async function startSearchRun(limit = 10, keywords) {
-  const started = await apiRequest('/v1/search-runs', {
-    method: 'POST',
-    body: JSON.stringify({ limit, ...(keywords ? { keywords } : {}) })
-  });
-
+  const started = await socket.timeout(5000).emitWithAck(
+    'search-run:start',
+    { limit, ...(keywords ? { keywords } : {}) }
+  );
+  if (!started.success) throw new Error(started.error);
   activeRunId = started.id;
-
-  const acknowledgement = await socket
-    .timeout(5000)
-    .emitWithAck('search-run:subscribe', { runId: started.id });
-
-  if (!acknowledgement.success) {
-    throw new Error(acknowledgement.error);
-  }
-
-  const currentRun = await apiRequest(started.pollUrl);
-  renderProgress(currentRun);
-
-  return currentRun;
+  renderProgress(started);
+  return started;
 }
 ```
 

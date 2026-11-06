@@ -11,6 +11,10 @@ export const loadEnvironment=(env=process.env)=>{
   const publicBaseUrl=env.PUBLIC_BASE_URL||`http://localhost:${port}`;
   const frontendOrigin=new URL(env.FRONTEND_ORIGIN||publicBaseUrl).origin;
   const targetCountry=env.TARGET_COUNTRY||'United States';
+  const isVercel=env.VERCEL==='1'||env.VERCEL==='true';
+  // Vercel strips the function route prefix (/api) before dispatching to the
+  // exported server. The catch-all function then receives /backend/socket.io.
+  const socketPath=env.SOCKET_IO_PATH||(isVercel?'/backend/socket.io':'/socket.io');
   const apiKey=env.DASHBOARD_API_KEY;
   const mongodbUri=env.MONGODB_URI;
 
@@ -20,11 +24,14 @@ export const loadEnvironment=(env=process.env)=>{
   if (!COUNTRIES.includes(targetCountry)) throw new Error('TARGET_COUNTRY must be United States or Canada');
   if (env.AUTOMATED_POLLING_ENABLED==='true') throw new Error('Automated recurring Upwork polling is disabled in this build');
   if (env.NODE_ENV==='production'&&!publicBaseUrl.startsWith('https://')) throw new Error('Use an HTTPS PUBLIC_BASE_URL in production');
+  if (!socketPath.startsWith('/')) throw new Error('SOCKET_IO_PATH must start with /');
 
   return Object.freeze({
     port,
     publicBaseUrl,
     frontendOrigin,
+    socketPath,
+    isVercel,
     targetCountry,
     apiKey,
     mongodbUri,

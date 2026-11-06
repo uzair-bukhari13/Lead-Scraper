@@ -77,7 +77,7 @@ export const createSearchRunsService = (
   };
 
   const callUpworkWithinQuota = async (action, params) => {
-    const waitTime = quota.nextAvailableMs();
+    const waitTime = await quota.nextAvailableMs();
 
     if (waitTime > MAX_QUOTA_WAIT_MS) {
       throw createHttpError(SEARCH_RUN_MESSAGES.quotaExhausted, 429);
@@ -87,7 +87,7 @@ export const createSearchRunsService = (
       await pause(waitTime + 10);
     }
 
-    quota.reserve();
+    await quota.reserve();
     return mcp.call(action, params);
   };
 
@@ -172,7 +172,12 @@ export const createSearchRunsService = (
     }
   };
 
-  const startManualRun = ({ country, limit = 10, keywords = KEYWORDS } = {}) => {
+  const startManualRun = ({
+    country,
+    limit = 10,
+    keywords = KEYWORDS,
+    onRunCreated
+  } = {}) => {
     repository.removeExpired();
 
     if (busy) {
@@ -188,6 +193,7 @@ export const createSearchRunsService = (
 
     repository.create(run);
     busy = true;
+    onRunCreated?.(run);
 
     // The HTTP request returns immediately. Progress is read through getRun().
     void executeSearchRun(run, searches, limit);
