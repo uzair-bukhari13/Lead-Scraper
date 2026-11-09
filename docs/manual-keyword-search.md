@@ -28,6 +28,7 @@ Socket.IO path: /api/backend/socket.io
 ```json
 {
   "limit": 10,
+  "country": "United States",
   "keywords": [
     "React development",
     "Node.js API",
@@ -38,12 +39,13 @@ Socket.IO path: /api/backend/socket.io
 
 | Field | Type | Required | Rules |
 |---|---|---:|---|
-| `limit` | Integer | No | Defaults to `10`; minimum `1`, maximum `10`. This is the maximum number of jobs requested per keyword. |
+| `limit` | Integer | No | Defaults to `10`; minimum `1`, maximum `50`. This is the maximum number of jobs requested per keyword. |
+| `country` | String | No | `United States` or `Canada`. If omitted, the backend uses `TARGET_COUNTRY`. |
 | `keywords` | String array | No | Supply 1–13 entries. Each entry is trimmed, must not be empty, and may contain at most 80 characters. Duplicate entries are removed. |
 
 When `keywords` is omitted, the backend uses its 13 configured default keywords. An empty array is invalid; omit the field to use the defaults.
 
-The country cannot be supplied by the browser. The backend uses its configured `TARGET_COUNTRY`.
+The frontend can select `United States` or `Canada` for each run. If `country` is omitted, the backend uses its configured `TARGET_COUNTRY`.
 
 Each keyword causes one Upwork search request. For example, three keywords with `limit: 10` produce three requests and may discover up to 30 jobs before duplicate jobs are merged.
 
@@ -71,7 +73,7 @@ The endpoint returns HTTP `202 Accepted` immediately while the search continues 
 ## Local HTTP request helper
 
 ```js
-export async function startSearchRun({ keywords, limit = 10 }) {
+export async function startSearchRun({ keywords, limit = 10, country }) {
   const cleanedKeywords = keywords
     .map(keyword => keyword.trim())
     .filter(Boolean);
@@ -80,6 +82,7 @@ export async function startSearchRun({ keywords, limit = 10 }) {
     method: 'POST',
     body: JSON.stringify({
       limit,
+      ...(country ? { country } : {}),
       keywords: cleanedKeywords
     })
   });
@@ -128,6 +131,7 @@ await new Promise((resolve, reject) => {
 
 const started = await socket.timeout(5000).emitWithAck('search-run:start', {
   limit: 10,
+  country: 'Canada',
   keywords: ['React development', 'Node.js API', 'Shopify']
 });
 if (!started.success) throw new Error(started.error);
@@ -148,8 +152,8 @@ Register the progress listener before starting a search. After receiving the `20
 5. On `complete`, `partial`, or `failed`, unsubscribe and reload `/v1/leads`.
 
 ```js
-export async function startAndMonitorSearch({ keywords, limit = 10 }) {
-  const started = await startSearchRun({ keywords, limit });
+export async function startAndMonitorSearch({ keywords, limit = 10, country }) {
+  const started = await startSearchRun({ keywords, limit, country });
   activeRunId = started.id;
 
   const acknowledgement = await socket

@@ -309,11 +309,12 @@ Content-Type: application/json
 
 {
   "limit": 10,
+  "country": "Canada",
   "keywords": ["React development", "Node.js API", "Shopify"]
 }
 ```
 
-`limit` must be an integer from 1 to 10 and controls the maximum jobs requested per keyword. `keywords` is optional and accepts 1–13 non-empty strings of at most 80 characters each. Entries are trimmed and duplicates are removed. When `keywords` is omitted, the backend uses its 13 configured default keywords. Do not send an empty array to request the defaults.
+`limit` must be an integer from 1 to 50 and controls the maximum jobs requested per keyword. `country` is optional and accepts `United States` or `Canada`; when omitted, the backend uses `TARGET_COUNTRY`. `keywords` is optional and accepts 1–13 non-empty strings of at most 80 characters each. Entries are trimmed and duplicates are removed. When `keywords` is omitted, the backend uses its 13 configured default keywords. Do not send an empty array to request the defaults.
 
 For a focused frontend handoff covering manual keyword input, validation, progress, and errors, see [manual-keyword-search.md](manual-keyword-search.md).
 
@@ -333,10 +334,10 @@ HTTP `202` response:
 Start the run through the socket:
 
 ```js
-export async function startSearchRun(limit = 10, keywords) {
+export async function startSearchRun(limit = 10, keywords, country) {
   const started = await socket.timeout(5000).emitWithAck(
     'search-run:start',
-    { limit, ...(keywords ? { keywords } : {}) }
+    { limit, ...(keywords ? { keywords } : {}), ...(country ? { country } : {}) }
   );
   if (!started.success) throw new Error(started.error);
   activeRunId = started.id;

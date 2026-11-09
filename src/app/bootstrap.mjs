@@ -82,7 +82,7 @@ export const bootstrap = async ({
     startSearchRun: input =>
       searchRunsService.startManualRun({
         ...input,
-        country: config.targetCountry,
+        country: input.country ?? config.targetCountry,
         onRunCreated: run =>
           searchRunsSocket.joinRunRoom(input.socket, run.id)
       })
