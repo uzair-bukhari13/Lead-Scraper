@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/backend/:path*",
-      "destination": "/api/index?__path=/$path"
+      "destination": "/api/index?__path=/:path*"
     },
     {
       "source": "/api/backend",
