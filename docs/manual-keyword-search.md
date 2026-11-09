@@ -118,6 +118,15 @@ socket.on('search-run:progress', progress => {
   if (progress.id !== activeRunId) return;
   renderProgress(progress);
   if (['complete', 'partial', 'failed'].includes(progress.status)) {
+    const quotaError = progress.errors?.find(
+      error => Number.isFinite(error.retryAfterSeconds)
+    );
+    if (quotaError) {
+      const minutes = Math.ceil(quotaError.retryAfterSeconds / 60);
+      showSearchMessage(
+        `Search quota exhausted. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`
+      );
+    }
     activeRunId = null;
     loadLeads();
   }
@@ -226,7 +235,7 @@ Other relevant responses:
 | `400` | Invalid `limit` or `keywords` | Show the returned validation message near the form. |
 | `401` | Missing or incorrect API key | Stop the request and return to the dashboard configuration state. |
 | `409` | Another search run is active | Keep monitoring the existing run; do not retry immediately. |
-| `429` | Local Upwork quota limit | Display the retry message and retry only after the limit clears. |
+| Terminal run with a quota error | `errors[]` includes `retryAfterSeconds` when available; show the wait before allowing another start. |
 | `500` | Backend, OAuth, MCP, or database failure | Show a generic retry message and log the request context. |
 
 ## Lead results

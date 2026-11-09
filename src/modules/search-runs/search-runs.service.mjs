@@ -10,8 +10,8 @@ const MAX_QUOTA_WAIT_MS = 60_000;
 const pause = milliseconds =>
   new Promise(resolve => setTimeout(resolve, milliseconds));
 
-const createHttpError = (message, statusCode) =>
-  Object.assign(new Error(message), { statusCode });
+const createHttpError = (message, statusCode, details = {}) =>
+  Object.assign(new Error(message), { statusCode, ...details });
 
 const createSearchRunRecord = ({ country, keywords, plannedRequests }) => ({
   id: randomUUID(),
@@ -80,7 +80,9 @@ export const createSearchRunsService = (
     const waitTime = await quota.nextAvailableMs();
 
     if (waitTime > MAX_QUOTA_WAIT_MS) {
-      throw createHttpError(SEARCH_RUN_MESSAGES.quotaExhausted, 429);
+      throw createHttpError(SEARCH_RUN_MESSAGES.quotaExhausted, 429, {
+        retryAfterSeconds: Math.ceil(waitTime / 1000)
+      });
     }
 
     if (waitTime > 0) {
@@ -113,7 +115,10 @@ export const createSearchRunsService = (
           run.errors.push({
             keyword,
             country,
-            message: error.message
+            message: error.message,
+            ...(error.retryAfterSeconds
+              ? { retryAfterSeconds: error.retryAfterSeconds }
+              : {})
           });
           break;
         }
@@ -159,7 +164,9 @@ export const createSearchRunsService = (
         publishRunProgress(run, lastCompletedSearch);
       }
 
-      run.status = run.errors.length > 0 ? 'partial' : 'complete';
+      run.status = run.errors.length > 0
+        ? (run.completedRequests > 0 ? 'partial' : 'failed')
+        : 'complete';
     } catch (error) {
       run.errors.push({ message: error.message });
       run.status = 'failed';

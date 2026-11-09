@@ -295,6 +295,15 @@ socket.on('search-run:progress', progress => {
   renderProgress(progress);
 
   if (['complete', 'partial', 'failed'].includes(progress.status)) {
+    const quotaError = progress.errors?.find(
+      error => Number.isFinite(error.retryAfterSeconds)
+    );
+    if (quotaError) {
+      const minutes = Math.ceil(quotaError.retryAfterSeconds / 60);
+      showSearchMessage(
+        `Search quota exhausted. Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`
+      );
+    }
     finishActiveRun(progress);
   }
 });
@@ -508,12 +517,17 @@ REST errors use this shape:
 }
 ```
 
-Rate-limit errors may also include:
+Because a search starts asynchronously, quota exhaustion is reported in the terminal run snapshot rather than as an HTTP `429` from the start request:
 
 ```json
 {
-  "error": "Local Upwork safety limit reached (minute); retry later",
-  "retryAfterSeconds": 30
+  "status": "failed",
+  "errors": [
+    {
+      "message": "Search quota exhausted; start a new manual run later",
+      "retryAfterSeconds": 647
+    }
+  ]
 }
 ```
 
@@ -525,7 +539,7 @@ Important status codes:
 | `401` | Missing or incorrect API key | Stop requests and return to authentication/configuration state |
 | `404` | Unknown route or expired search run | Clear the stale active run and reload leads |
 | `409` | Another search run is already active | Show the existing-run message and avoid starting another run |
-| `429` | Local quota limit | Display retry time when provided |
+| Terminal run with a quota error | `errors[]` includes `retryAfterSeconds` when available; display the wait before allowing another start |
 | `500` | Backend, MongoDB, OAuth, or MCP failure | Show a generic retry message and log the request context |
 
 ## UI state recommendations
