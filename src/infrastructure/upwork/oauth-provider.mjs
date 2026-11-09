@@ -13,7 +13,18 @@ export const createUpworkOAuthProvider = (secureStore, publicBaseUrl) => {
     token_endpoint_auth_method: 'none'
   };
 
-  const clientInformation = () => secureStore.get('clientInformation');
+  const clientInformation = async () => {
+    const information = await secureStore.get('clientInformation');
+
+    // A Vercel hostname or API prefix change changes the OAuth redirect URI.
+    // Do not reuse a dynamic client registration bound to the previous URI.
+    if (information && !information.redirect_uris?.includes(redirectUrl)) {
+      await secureStore.remove('clientInformation');
+      return undefined;
+    }
+
+    return information;
+  };
 
   const saveClientInformation = value =>
     secureStore.set('clientInformation', value);
