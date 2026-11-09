@@ -1,10 +1,10 @@
 # Deploy to Vercel
 
-This backend uses a Vercel Node.js function at `api/[...backend].mjs`. It exports the HTTP server and Socket.IO instance, with Fluid Compute enabled in `vercel.json`. On Vercel, start searches with the `search-run:start` socket event; the local HTTP `POST /v1/search-runs` endpoint returns `405` in the Vercel environment.
+This backend uses the Vercel Node.js function at `api/index.mjs`. Rewrites in `vercel.json` forward `/api/backend/*` requests to that function, which restores the original backend path before passing it to Express. Fluid Compute is enabled in `vercel.json`. On Vercel, start searches with the `search-run:start` socket event; the local HTTP `POST /v1/search-runs` endpoint returns `405` in the Vercel environment.
 
 ## 1. Prepare the Vercel project
 
-Push this repository to a Git provider, then import it in Vercel. Keep the project root at this repository's root (the directory containing `package.json` and `vercel.json`), use the Node.js runtime, and do not set a custom output directory. `api/[...backend].mjs` is the function entry point.
+Push this repository to a Git provider, then import it in Vercel. Keep the project root at this repository's root (the directory containing `package.json` and `vercel.json`), use the Node.js runtime, and do not set a custom output directory. `api/index.mjs` is the function entry point; the Vercel rewrites route the public API paths to it.
 
 Alternatively, install/use the Vercel CLI and run `vercel` from this directory to link and create a preview deployment. Use `vercel --prod` after preview configuration is verified.
 

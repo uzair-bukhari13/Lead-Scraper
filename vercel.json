@@ -2,6 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "fluid": true,
+  "rewrites": [
+    {
+      "source": "/api/backend/:path*",
+      "destination": "/api/index?__path=/$path"
+    },
+    {
+      "source": "/api/backend",
+      "destination": "/api/index?__path=/"
+    }
+  ],
   "functions": {
     "api/**/*.mjs": {
       "maxDuration": 300
