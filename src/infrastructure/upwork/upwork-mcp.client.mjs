@@ -46,6 +46,7 @@ export const createUpworkMcpClient = (
   let pendingTransport = null;
   let orgUid = null;
   let connecting = null;
+  let finishingAuth = null;
   const toolNames = new Map();
 
   const callDirect = async (name, args) => {
@@ -176,7 +177,11 @@ export const createUpworkMcpClient = (
     }
   };
 
-  const finishOAuth = async params => {
+  const completeOAuth = async params => {
+    if (client) {
+      return;
+    }
+
     const state = params.get('state');
     const code = params.get('code');
 
@@ -192,6 +197,22 @@ export const createUpworkMcpClient = (
     await provider.clearPending();
     pendingTransport = null;
     await openConnection();
+  };
+
+  const finishOAuth = params => {
+    if (client) {
+      return Promise.resolve();
+    }
+
+    if (finishingAuth) {
+      return finishingAuth;
+    }
+
+    finishingAuth = completeOAuth(params).finally(() => {
+      finishingAuth = null;
+    });
+
+    return finishingAuth;
   };
 
   const call = async (name, params = {}) => {
@@ -225,6 +246,7 @@ export const createUpworkMcpClient = (
       client = null;
       transport = null;
       pendingTransport = null;
+      finishingAuth = null;
       orgUid = null;
       toolNames.clear();
       await provider.disconnect();

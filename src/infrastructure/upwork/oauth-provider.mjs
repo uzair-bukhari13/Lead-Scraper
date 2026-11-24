@@ -79,6 +79,25 @@ export const createUpworkOAuthProvider = (secureStore, publicBaseUrl) => {
     authorizationUrl = null;
   };
 
+  const invalidateCredentials = async scope => {
+    if (scope === 'all') {
+      await secureStore.clear();
+      authorizationUrl = null;
+      return;
+    }
+
+    const fieldByScope = {
+      client: 'clientInformation',
+      tokens: 'tokens',
+      verifier: 'codeVerifier'
+    };
+    const field = fieldByScope[scope];
+
+    if (field) {
+      await secureStore.remove(field);
+    }
+  };
+
   const disconnect = async () => {
     await secureStore.clear();
     authorizationUrl = null;
@@ -100,6 +119,7 @@ export const createUpworkOAuthProvider = (secureStore, publicBaseUrl) => {
     codeVerifier,
     validCallbackState,
     clearPending,
+    invalidateCredentials,
     disconnect
   });
 };
